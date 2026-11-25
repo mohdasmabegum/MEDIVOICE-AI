@@ -94,15 +94,25 @@ CANCELLATION PROTOCOL:
 """
 
 class GeminiService:
+    DEFAULT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash']
+
     def __init__(self):
         self.client = None
+        self._preferred_model: Optional[str] = None
         self._init_client()
 
     def _init_client(self):
         if is_gemini_configured():
             try:
                 from google import genai
-                self.client = genai.Client(api_key=GEMINI_API_KEY)
+                from google.genai import types
+                self.client = genai.Client(
+                    api_key=GEMINI_API_KEY,
+                    http_options=types.HttpOptions(
+                        timeout=20000,
+                        retry_options=types.HttpRetryOptions(attempts=1),
+                    ),
+                )
                 logger.info("Initialized Google GenAI client (google-genai SDK).")
             except Exception as e:
                 logger.error(f"Failed to initialize google.genai client: {e}")
@@ -149,7 +159,13 @@ class GeminiService:
             from google import genai
             from google.genai import types
 
-            client = self.client or genai.Client(api_key=GEMINI_API_KEY)
+            client = self.client or genai.Client(
+                api_key=GEMINI_API_KEY,
+                http_options=types.HttpOptions(
+                    timeout=20000,
+                    retry_options=types.HttpRetryOptions(attempts=1),
+                ),
+            )
 
             # Build history (normalize roles: must start with user and alternate)
             contents = []
@@ -188,10 +204,15 @@ class GeminiService:
             )
 
             # Iterative tool calling loop
+            model_order = list(self.DEFAULT_MODELS)
+            if self._preferred_model and self._preferred_model in model_order:
+                model_order.remove(self._preferred_model)
+                model_order.insert(0, self._preferred_model)
+
             for _ in range(5):
                 response = None
                 last_model_err = None
-                for candidate_model in ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash']:
+                for candidate_model in model_order:
                     try:
                         response = client.models.generate_content(
                             model=candidate_model,
@@ -199,6 +220,10 @@ class GeminiService:
                             config=config
                         )
                         if response:
+                            self._preferred_model = candidate_model
+                            if model_order[0] != candidate_model:
+                                model_order.remove(candidate_model)
+                                model_order.insert(0, candidate_model)
                             break
                     except Exception as model_err:
                         last_model_err = model_err
