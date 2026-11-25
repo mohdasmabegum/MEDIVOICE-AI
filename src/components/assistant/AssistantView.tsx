@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Mic, 
-  Sparkles, 
+  Bot,
   CheckCircle2, 
-  Activity, 
-  ShieldCheck, 
-  Radio, 
-  Volume2, 
-  Clock, 
   Calendar, 
   PhoneCall,
   Headphones,
@@ -23,17 +17,15 @@ interface AssistantViewProps {
 }
 
 export const AssistantView: React.FC<AssistantViewProps> = ({
-  doctors = [],
   onOpenFullScreenCall,
 }) => {
-  const [backendStatus, setBackendStatus] = useState<{ online: boolean; latencyMs: number } | null>(null);
-  const [micState, setMicState] = useState<'checking' | 'ready' | 'prompt'>('ready');
+  const [isOnline, setIsOnline] = useState<boolean>(true);
 
   useEffect(() => {
     let isMounted = true;
     apiService.checkPipecatBackendStatus().then((status) => {
       if (isMounted) {
-        setBackendStatus({ online: status.online, latencyMs: status.latencyMs });
+        setIsOnline(status.online);
       }
     });
     return () => { isMounted = false; };
@@ -46,22 +38,18 @@ export const AssistantView: React.FC<AssistantViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-[#172033] tracking-tight">
-              AI Voice Assistant
+              Alex — AI Voice Assistant
             </h1>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200">
-              <Sparkles className="w-3 h-3" />
-              Phase 2 Conversational Engine
-            </span>
           </div>
           <p className="text-xs sm:text-sm text-[#64748B] mt-1">
-            Immersive full-screen calling, real Web Audio reactive waveforms, live appointment booking and cancellation.
+            Speak naturally with Alex for live doctor availability, appointment booking, and cancellations.
           </p>
         </div>
 
         {/* Status notice */}
         <div className="flex items-center gap-2 px-3.5 py-1.5 bg-teal-50 text-teal-800 border border-teal-200/80 rounded-xl text-xs font-medium self-start sm:self-auto">
-          <ShieldCheck className="w-4 h-4 text-[#0D9488] shrink-0" />
-          <span>Pipecat WebRTC Voice Engine Ready</span>
+          <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <span>{isOnline ? 'Alex is Online' : 'Connecting...'}</span>
         </div>
       </div>
 
@@ -72,35 +60,30 @@ export const AssistantView: React.FC<AssistantViewProps> = ({
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-50/40 rounded-full blur-3xl pointer-events-none -z-0" />
 
         <div className="relative z-10 max-w-xl flex flex-col items-center">
-          {/* Central AI Avatar with pulse ring */}
+          {/* Central AI Assistant Avatar */}
           <div className="relative my-4">
             <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-gradient-to-tr from-[#0D9488] to-[#14B8A6] flex items-center justify-center text-white shadow-elevated ring-8 ring-teal-50/80">
-              <Activity className="w-12 h-12 sm:w-16 sm:h-16 animate-pulse" />
+              <Bot className="w-12 h-12 sm:w-16 sm:h-16" />
             </div>
+            <span className="absolute bottom-2 right-2 w-5 h-5 rounded-full bg-emerald-500 ring-4 ring-white" title="Alex Online" />
           </div>
 
           <h2 className="text-xl sm:text-2xl font-bold text-[#172033] mt-2">
-            Metropolitan AI Outpatient Receptionist
+            Alex • Metropolitan Health Clinic Receptionist
           </h2>
           <p className="text-xs sm:text-sm text-[#64748B] mt-1.5 leading-relaxed">
-            Click below to open the full-screen immersive voice calling session with speech-to-text, doctor schedule lookup, and automated booking confirmation.
+            Click below to start a live voice call with Alex for doctor schedule lookup, appointment booking, and instant cancellations.
           </p>
 
-          {/* Telemetry Pills */}
+          {/* Status Pills */}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
-            {backendStatus && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[#172033] font-mono">
-                <Radio className="w-3.5 h-3.5 text-[#0D9488]" />
-                Latency: {backendStatus.latencyMs}ms
-              </span>
-            )}
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               Microphone Ready
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 font-medium">
-              <Sparkles className="w-3.5 h-3.5 text-[#0D9488]" />
-              Web Audio Reactive
+              <Bot className="w-3.5 h-3.5 text-[#0D9488]" />
+              24/7 Appointment Support
             </span>
           </div>
 
@@ -111,7 +94,7 @@ export const AssistantView: React.FC<AssistantViewProps> = ({
               className="flex items-center gap-2.5 px-8 py-3.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-2xl font-semibold text-sm sm:text-base shadow-lg shadow-teal-700/25 transition-all hover:scale-[1.03] hover:shadow-xl"
             >
               <Headphones className="w-5 h-5" />
-              <span>Start Full-Screen AI Call</span>
+              <span>Call Alex Now</span>
               <Maximize2 className="w-4 h-4 opacity-70 ml-1" />
             </button>
           </div>

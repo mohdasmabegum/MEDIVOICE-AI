@@ -494,6 +494,7 @@ export const App: React.FC = () => {
         onStartCall={voiceCall.startCall}
         onEndCall={voiceCall.endCall}
         onToggleMute={voiceCall.toggleMute}
+        onFinalizeSpeech={voiceCall.finalizeSpeechInput}
         onSendSpeech={voiceCall.processUserSpeech}
       />
 
@@ -528,6 +529,11 @@ export const App: React.FC = () => {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onStartAICall={handleOpenAICall}
+          activeTab={activeTab}
+          onNavigateTab={(tab) => {
+            setActiveTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
 
         {/* Content Body */}

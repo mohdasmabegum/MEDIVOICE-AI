@@ -51,10 +51,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <h1 className="text-2xl font-bold text-[#172033] tracking-tight">
               Clinical Overview
             </h1>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200">
-              <Sparkles className="w-3 h-3" />
-              Phase 2 Active
-            </span>
           </div>
           <p className="text-xs sm:text-sm text-[#64748B] mt-1">
             Real-time outpatient reception status, physician rosters, and voice scheduling activity.

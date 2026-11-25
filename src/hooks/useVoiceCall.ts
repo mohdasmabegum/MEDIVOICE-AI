@@ -69,6 +69,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 interface UseVoiceCallOptions {
   doctors: Doctor[];
   appointments: Appointment[];
+  silenceDurationMs?: number;
   onBookAppointment: (data: {
     patientName: string;
     patientPhone: string;
@@ -89,6 +90,7 @@ interface UseVoiceCallOptions {
 export const useVoiceCall = ({
   doctors,
   appointments,
+  silenceDurationMs = 1750,
   onBookAppointment,
   onCancelAppointment,
   onShowToast,
@@ -128,9 +130,13 @@ export const useVoiceCall = ({
   const audioChunksRef = useRef<Blob[]>([]);
   const mimeTypeRef = useRef<string>('audio/webm');
   const isSpeakingRef = useRef(false);
+  const speechStartedAtRef = useRef<number>(0);
   const lastSpeechTimeRef = useRef<number>(0);
   const recorderStartedAtRef = useRef<number>(0);
   const isFlushingUtteranceRef = useRef(false);
+  const isProcessingTurnRef = useRef(false);
+  const silenceDurationRef = useRef<number>(silenceDurationMs);
+  silenceDurationRef.current = silenceDurationMs;
 
   // --- Safe WebSocket Send with Queueing ---
   const sendWsMessage = useCallback((payload: Record<string, any>) => {
@@ -244,9 +250,16 @@ export const useVoiceCall = ({
     } finally {
       isPlayingAudioRef.current = false;
       aiSpeakingEndedAtRef.current = Date.now();
+      isProcessingTurnRef.current = false;
       if (callStateRef.current === 'ai_speaking') {
-        setCallState('listening');
-        setConversationStage('listening');
+        setCallState('ready_for_next_input');
+        setConversationStage('ready_for_next_input');
+        setTimeout(() => {
+          if (callStateRef.current === 'ready_for_next_input') {
+            setCallState('listening');
+            setConversationStage('listening');
+          }
+        }, 250);
       }
       // Reset recorder buffer after AI audio finishes so no TTS echo is included in next utterance
       if (!isSpeakingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -295,10 +308,21 @@ export const useVoiceCall = ({
               sendWsMessage({ type: 'audio_chunk', data: b64 });
               sendWsMessage({ type: 'speech_end' });
             }
+          } else {
+            isProcessingTurnRef.current = false;
+            setCallState('listening');
+            setConversationStage('listening');
           }
         } catch (err) {
           console.warn('[MediVoice] Failed to send audio utterance:', err);
+          isProcessingTurnRef.current = false;
+          setCallState('listening');
+          setConversationStage('listening');
         }
+      } else if (shouldSend) {
+        isProcessingTurnRef.current = false;
+        setCallState('listening');
+        setConversationStage('listening');
       }
 
       // Immediately start a new recorder with a fresh WebM header if call is still active
@@ -317,6 +341,25 @@ export const useVoiceCall = ({
     recorder.start(250);
   }, []);
 
+  // --- Finalize Current Speech Input Immediately (VAD end or explicit "Done" command) ---
+  const finalizeSpeechInput = useCallback(() => {
+    if (isProcessingTurnRef.current || isPlayingAudioRef.current) return;
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state === 'recording' && !isFlushingUtteranceRef.current) {
+      isSpeakingRef.current = false;
+      isProcessingTurnRef.current = true;
+      isFlushingUtteranceRef.current = true;
+      setCallState('processing_audio');
+      setConversationStage('processing_audio');
+      try {
+        rec.stop();
+      } catch {
+        isFlushingUtteranceRef.current = false;
+        isProcessingTurnRef.current = false;
+      }
+    }
+  }, []);
+
   // --- Microphone Audio Waveform Visualiser + VAD Silence Detection ---
   const startAudioAnalysis = useCallback((stream: MediaStream, ws: WebSocket) => {
     try {
@@ -331,8 +374,10 @@ export const useVoiceCall = ({
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const SPEECH_THRESHOLD = 0.025;
-      const SILENCE_MS = 650;
+      const SPEECH_START_THRESHOLD = 0.024;
+      const SPEECH_SUSTAIN_THRESHOLD = 0.015;
+      const MIN_SPEECH_MS = 250;
+      const ECHO_COOLDOWN_MS = 500;
 
       const updateWaveform = () => {
         if (!analyserRef.current) return;
@@ -357,30 +402,38 @@ export const useVoiceCall = ({
 
           // Voice Activity Detection (VAD)
           const now = Date.now();
-          const inEchoCooldown = now - aiSpeakingEndedAtRef.current < 450;
+          const inEchoCooldown = now - aiSpeakingEndedAtRef.current < ECHO_COOLDOWN_MS;
+          const activeThreshold = isSpeakingRef.current ? SPEECH_SUSTAIN_THRESHOLD : SPEECH_START_THRESHOLD;
 
-          if (avgVol > SPEECH_THRESHOLD && !inEchoCooldown) {
+          if (avgVol > activeThreshold && !inEchoCooldown) {
             // If user speaks loudly while AI is speaking, interrupt AI playback
-            if (isPlayingAudioRef.current && avgVol > 0.12) {
+            if (isPlayingAudioRef.current && avgVol > 0.14) {
               stopAudioPlayback();
+              isProcessingTurnRef.current = false;
               sendWsMessage({ type: 'interrupt' });
             }
-            if (!isPlayingAudioRef.current && callStateRef.current !== 'processing') {
-              isSpeakingRef.current = true;
+            if (!isPlayingAudioRef.current && !isProcessingTurnRef.current) {
+              if (!isSpeakingRef.current) {
+                isSpeakingRef.current = true;
+                speechStartedAtRef.current = now;
+                setCallState('speech_detected');
+                setConversationStage('speech_detected');
+              }
               lastSpeechTimeRef.current = now;
             }
-          } else if (isSpeakingRef.current && now - lastSpeechTimeRef.current > SILENCE_MS) {
-            // User finished speaking — stop recorder to flush complete WebM blob with header
-            isSpeakingRef.current = false;
-            const rec = mediaRecorderRef.current;
-            if (rec && rec.state === 'recording' && !isFlushingUtteranceRef.current) {
-              isFlushingUtteranceRef.current = true;
-              rec.stop();
-            }
+          } else if (
+            isSpeakingRef.current &&
+            !isProcessingTurnRef.current &&
+            now - speechStartedAtRef.current >= MIN_SPEECH_MS &&
+            now - lastSpeechTimeRef.current >= silenceDurationRef.current
+          ) {
+            // User finished speaking (1.5-2s continuous silence) — flush complete audio to ElevenLabs STT
+            finalizeSpeechInput();
           } else if (
             !isSpeakingRef.current &&
             !isPlayingAudioRef.current &&
-            now - recorderStartedAtRef.current > 3500
+            !isProcessingTurnRef.current &&
+            now - recorderStartedAtRef.current > 4000
           ) {
             // Periodically rotate idle recorder so silence/ambient noise never accumulates
             const rec = mediaRecorderRef.current;
@@ -395,7 +448,7 @@ export const useVoiceCall = ({
       };
       updateWaveform();
     } catch {}
-  }, [stopAudioPlayback]);
+  }, [stopAudioPlayback, finalizeSpeechInput, sendWsMessage]);
 
   const stopAudioAnalysis = useCallback(() => {
     if (animationFrameRef.current) {
@@ -435,13 +488,14 @@ export const useVoiceCall = ({
 
       case 'call_state':
         // Do not override ai_speaking -> listening prematurely while browser audio queue is still playing
-        if (msg.state === 'listening' && isPlayingAudioRef.current) {
+        if ((msg.state === 'listening' || msg.state === 'ready_for_next_input') && isPlayingAudioRef.current) {
           break;
         }
+        if (msg.state === 'listening' || msg.state === 'ready_for_next_input') {
+          isProcessingTurnRef.current = false;
+        }
         setCallState(msg.state as CallState);
-        if (msg.state === 'listening') setConversationStage('listening');
-        if (msg.state === 'processing') setConversationStage('processing');
-        if (msg.state === 'ai_speaking') setConversationStage('ai_speaking');
+        setConversationStage(msg.state);
         break;
 
       case 'llm_response':
@@ -773,6 +827,7 @@ export const useVoiceCall = ({
     startCall,
     endCall,
     toggleMute,
+    finalizeSpeechInput,
     processUserSpeech,
   };
 };

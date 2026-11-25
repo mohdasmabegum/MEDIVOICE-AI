@@ -95,7 +95,12 @@ export type CallState =
   | 'connecting'
   | 'connected'
   | 'listening'
+  | 'speech_detected'
+  | 'processing_audio'
+  | 'transcribing'
+  | 'generating_response'
   | 'ai_speaking'
+  | 'ready_for_next_input'
   | 'processing'
   | 'ended'
   | 'error';

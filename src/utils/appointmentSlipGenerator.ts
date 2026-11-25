@@ -236,7 +236,7 @@ export const generateAppointmentSlipPDFBlob = (booking: BookingSuccessData): Blo
     '/F1 9 Tf',
     '0.392 0.455 0.545 rg',
     '50 264 Td',
-    '(- To reschedule or cancel, speak to MediVoice AI or contact clinic reception.) Tj',
+    '(- To reschedule or cancel, speak to Alex (MediVoice AI) or contact clinic reception.) Tj',
     'ET',
 
     // Footer
@@ -244,7 +244,7 @@ export const generateAppointmentSlipPDFBlob = (booking: BookingSuccessData): Blo
     '/F1 8 Tf',
     '0.580 0.639 0.722 rg',
     '150 160 Td',
-    `(${clinicName} - Automated HIPAA Compliant Slip - ${bookedAt}) Tj`,
+    `(${clinicName} - Official Appointment Confirmation Slip - ${bookedAt}) Tj`,
     'ET'
   ];
 

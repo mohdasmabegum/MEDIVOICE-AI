@@ -27,6 +27,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -66,6 +67,22 @@ class PipecatVoiceSession:
         self.last_cancellation: Optional[Dict] = None
         self.session_state: Dict[str, Any] = {"confirmed_phone": ""}
         self.call_state = "connecting"
+        self._is_processing = False
+
+    @staticmethod
+    def _strip_done_command(text: str) -> tuple[str, bool]:
+        """Strip trailing or standalone explicit 'Done' control command from recognized speech."""
+        cleaned = text.strip()
+        if not cleaned:
+            return "", False
+        # Exact standalone "done" or "i'm done"
+        if re.fullmatch(r"(?:i'?m\s+)?done[.!?]*", cleaned, flags=re.IGNORECASE):
+            return "", True
+        # Trailing ", done." / " done."
+        updated = re.sub(r"(?:[\s,;.!?]+)(?:i'?m\s+)?done[.!?]*$", "", cleaned, flags=re.IGNORECASE).strip()
+        if updated != cleaned:
+            return updated, True
+        return cleaned, False
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -149,48 +166,70 @@ class PipecatVoiceSession:
 
     async def handle_speech_end(self) -> None:
         """Process buffered audio through ElevenLabs STT, then Gemini, then TTS."""
+        if self._is_processing:
+            logger.debug(f"[{self.session_id}] Ignoring duplicate speech_end while turn is already processing")
+            self.audio_buffer.clear()
+            return
+
         buffer_size = len(self.audio_buffer)
         if buffer_size < 800:
             logger.debug(f"[{self.session_id}] Audio buffer too small ({buffer_size} bytes), skipping STT")
             self.audio_buffer.clear()
+            await self.set_state("listening")
             return
 
+        self._is_processing = True
         audio_bytes = bytes(self.audio_buffer)
         self.audio_buffer.clear()
-        await self.set_state("processing")
-
-        # ── STT ──
-        if not is_elevenlabs_configured():
-            await self.send({
-                "type": "error",
-                "code": "ELEVENLABS_KEY_MISSING",
-                "message": (
-                    "ElevenLabs STT requires ELEVENLABS_API_KEY in backend/.env. "
-                    "You can still use the text input box below while audio STT is unavailable."
-                ),
-            })
-            await self.set_state("listening")
-            return
-
-        logger.info(f"[{self.session_id}] Sending {len(audio_bytes)} bytes to ElevenLabs STT")
         try:
-            stt = await asyncio.to_thread(elevenlabs_service.speech_to_text, audio_bytes, "caller.webm")
-        except Exception as exc:
-            logger.error(f"[{self.session_id}] STT call error: {exc}")
-            await self.send({"type": "speech_warning", "message": "Could not reach speech recognition service. Please try again."})
-            await self.set_state("listening")
-            return
+            await self.set_state("processing_audio")
 
-        recognized_text = (stt.get("text") or "").strip()
-        if not stt.get("success") or not recognized_text:
-            err = stt.get("error", "No speech detected")
-            logger.info(f"[{self.session_id}] STT result: success={stt.get('success')}, text='{recognized_text}', err={err}")
-            await self.send({"type": "speech_warning", "message": "Speech not recognized — please speak clearly and try again."})
-            await self.set_state("listening")
-            return
+            # ── STT ──
+            if not is_elevenlabs_configured():
+                await self.send({
+                    "type": "error",
+                    "code": "ELEVENLABS_KEY_MISSING",
+                    "message": (
+                        "ElevenLabs STT requires ELEVENLABS_API_KEY in backend/.env. "
+                        "You can still use the text input box below while audio STT is unavailable."
+                    ),
+                })
+                await self.set_state("listening")
+                return
 
-        logger.info(f"[{self.session_id}] STT recognized: '{recognized_text}'")
-        await self.process_utterance(recognized_text)
+            await self.set_state("transcribing")
+            logger.info(f"[{self.session_id}] Sending {len(audio_bytes)} bytes to ElevenLabs STT")
+            try:
+                stt = await asyncio.to_thread(elevenlabs_service.speech_to_text, audio_bytes, "caller.webm")
+            except Exception as exc:
+                logger.error(f"[{self.session_id}] STT call error: {exc}")
+                await self.send({"type": "speech_warning", "message": "Could not reach speech recognition service. Please try again."})
+                await self.set_state("listening")
+                return
+
+            recognized_text = (stt.get("text") or "").strip()
+            if not stt.get("success") or not recognized_text:
+                err = stt.get("error", "No speech detected")
+                logger.info(f"[{self.session_id}] STT result: success={stt.get('success')}, text='{recognized_text}', err={err}")
+                await self.send({"type": "speech_warning", "message": "Speech not recognized — please speak clearly and try again."})
+                await self.set_state("listening")
+                return
+
+            cleaned_text, had_done_cmd = self._strip_done_command(recognized_text)
+            if had_done_cmd and not cleaned_text:
+                logger.info(f"[{self.session_id}] Explicit 'Done' control command received with no request text")
+                await self.send({
+                    "type": "speech_warning",
+                    "message": "Input finalized. Please state your appointment request whenever you are ready.",
+                })
+                await self.set_state("listening")
+                return
+
+            final_text = cleaned_text or recognized_text
+            logger.info(f"[{self.session_id}] STT recognized: '{final_text}' (done_cmd={had_done_cmd})")
+            await self.process_utterance(final_text)
+        finally:
+            self._is_processing = False
 
     async def process_utterance(self, text: str) -> None:
         """Run one conversational turn: user text → Gemini → TTS."""
@@ -203,7 +242,7 @@ class PipecatVoiceSession:
             "text": text,
             "time": datetime.now().strftime("%H:%M:%S"),
         })
-        await self.set_state("processing")
+        await self.set_state("generating_response")
 
         # ── Gemini LLM ──
         if not is_gemini_configured():
@@ -265,6 +304,7 @@ class PipecatVoiceSession:
 
         # ── TTS ──
         await self._speak(ai_reply)
+        await self.set_state("ready_for_next_input")
         await self.set_state("listening")
 
     # ── Session teardown ───────────────────────────────────────────────────────

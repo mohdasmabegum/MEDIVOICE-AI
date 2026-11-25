@@ -85,7 +85,7 @@ export const RecentCalls: React.FC<RecentCallsProps> = ({ calls, onViewAll }) =>
             </span>
           </div>
           <p className="text-xs text-[#64748B] mt-0.5">
-            Voice sessions processed via Pipecat conversational intelligence
+            Recent patient voice calls handled by Alex
           </p>
         </div>
 
