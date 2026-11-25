@@ -9,6 +9,22 @@ from backend.database import SessionLocal, DoctorModel, AppointmentModel, CallRe
 def normalize_phone(phone: str) -> str:
     return re.sub(r'\D', '', phone)
 
+
+def format_phone_display(phone: str) -> str:
+    digits = normalize_phone(phone)
+    if len(digits) == 10:
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    if len(digits) == 11 and digits.startswith("1"):
+        return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
+    return phone.strip()
+
+
+def _slot_sort_key(slot: str):
+    try:
+        return datetime.strptime(slot.strip().upper(), "%I:%M %p")
+    except ValueError:
+        return datetime.max
+
 def check_doctor_availability(
     doctor_name_or_specialization: Optional[str] = None,
     doctor_name: Optional[str] = None,
@@ -179,7 +195,7 @@ def book_appointment(
         while db.query(AppointmentModel).filter(AppointmentModel.id == booking_id).first():
             booking_id = f"MED-2026-{random.randint(1000, 9999)}"
 
-        today_date_str = f"Today, {datetime.now().strftime('%b %d, %Y')}"
+        today_date_str = (appointment_date or date or "").strip() or f"Today, {datetime.now().strftime('%b %d, %Y')}"
         booked_time_str = datetime.now().strftime("%I:%M %p")
 
         # 6. Create appointment record
@@ -310,8 +326,7 @@ def cancel_appointment(
             current_slots = json.loads(doc.slots_today or "[]")
             if restored_slot not in current_slots:
                 current_slots.append(restored_slot)
-                # Sort slots nicely
-                current_slots.sort()
+                current_slots.sort(key=_slot_sort_key)
                 doc.slots_today = json.dumps(current_slots)
             doc.status = "available"
             doc.next_available_slot = f"Today, {current_slots[0]}"

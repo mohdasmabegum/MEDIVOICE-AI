@@ -64,6 +64,7 @@ class PipecatVoiceSession:
         self.is_active = True
         self.last_booking: Optional[Dict] = None
         self.last_cancellation: Optional[Dict] = None
+        self.session_state: Dict[str, Any] = {"confirmed_phone": ""}
         self.call_state = "connecting"
 
     # ── Helpers ────────────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ class PipecatVoiceSession:
             return
         await self.set_state("ai_speaking")
         try:
-            tts = elevenlabs_service.text_to_speech(text)
+            tts = await asyncio.to_thread(elevenlabs_service.text_to_speech, text)
             if tts.get("success") and tts.get("audio_bytes"):
                 audio_b64 = base64.b64encode(tts["audio_bytes"]).decode()
                 await self.send({
@@ -173,7 +174,7 @@ class PipecatVoiceSession:
 
         logger.info(f"[{self.session_id}] Sending {len(audio_bytes)} bytes to ElevenLabs STT")
         try:
-            stt = elevenlabs_service.speech_to_text(audio_bytes, filename="caller.webm")
+            stt = await asyncio.to_thread(elevenlabs_service.speech_to_text, audio_bytes, "caller.webm")
         except Exception as exc:
             logger.error(f"[{self.session_id}] STT call error: {exc}")
             await self.send({"type": "speech_warning", "message": "Could not reach speech recognition service. Please try again."})
@@ -222,12 +223,20 @@ class PipecatVoiceSession:
             return
 
         try:
-            gemini_res = gemini_service.chat(self.conversation_history)
+            gemini_res = await asyncio.to_thread(
+                gemini_service.chat,
+                self.conversation_history,
+                None,
+                self.session_state,
+            )
         except Exception as exc:
             logger.error(f"[{self.session_id}] Gemini call error: {exc}")
             await self.send({"type": "speech_error", "error": f"Gemini error: {exc}"})
             await self.set_state("listening")
             return
+
+        if self.session_state.get("confirmed_phone"):
+            self.caller_phone = self.session_state["confirmed_phone"]
 
         if gemini_res.get("error"):
             logger.error(f"[{self.session_id}] Gemini returned error: {gemini_res['error']}")

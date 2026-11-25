@@ -331,8 +331,8 @@ export const useVoiceCall = ({
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const SPEECH_THRESHOLD = 0.04;
-      const SILENCE_MS = 1200;
+      const SPEECH_THRESHOLD = 0.025;
+      const SILENCE_MS = 650;
 
       const updateWaveform = () => {
         if (!analyserRef.current) return;
@@ -380,7 +380,7 @@ export const useVoiceCall = ({
           } else if (
             !isSpeakingRef.current &&
             !isPlayingAudioRef.current &&
-            now - recorderStartedAtRef.current > 4000
+            now - recorderStartedAtRef.current > 3500
           ) {
             // Periodically rotate idle recorder so silence/ambient noise never accumulates
             const rec = mediaRecorderRef.current;
@@ -428,7 +428,7 @@ export const useVoiceCall = ({
       case 'connection_ready':
         sendWsMessage({
           type: 'init',
-          callerPhone: '+1 (555) 000-0000',
+          callerPhone: '',
           callerName: 'Caller',
         });
         break;

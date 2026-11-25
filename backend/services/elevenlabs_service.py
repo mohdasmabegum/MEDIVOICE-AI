@@ -38,7 +38,7 @@ class ElevenLabsService:
         self,
         text: str,
         voice_id: str = DEFAULT_VOICE_ID,
-        output_format: str = "mp3_44100_128"
+        output_format: str = "mp3_44100_64"
     ) -> Dict[str, Any]:
         """
         Converts text to speech audio bytes using ElevenLabs TTS.
