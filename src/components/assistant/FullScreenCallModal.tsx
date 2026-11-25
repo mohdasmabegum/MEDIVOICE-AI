@@ -165,7 +165,7 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#0D9488] animate-ping" />
-            Connecting to Alex...
+            Connecting...
           </span>
         );
       case 'connected':
@@ -179,50 +179,38 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Listening
+            Listening...
           </span>
         );
       case 'speech_detected':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
-            Speech Detected
+            Listening...
           </span>
         );
       case 'processing_audio':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            Processing Audio...
-          </span>
-        );
       case 'transcribing':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-            Transcribing...
-          </span>
-        );
       case 'generating_response':
       case 'processing':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            Generating Response...
+            Processing your request...
           </span>
         );
       case 'ai_speaking':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#0D9488] animate-bounce" />
-            Alex Speaking...
+            Alex is responding...
           </span>
         );
       case 'ready_for_next_input':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Ready for Next Input
+            Listening...
           </span>
         );
       case 'ended':
@@ -288,7 +276,7 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
                   AI Voice Assistant
                 </span>
               </div>
-              <p className="text-[11px] text-[#64748B]">MediVoice AI • Metropolitan Health Clinic</p>
+              <p className="text-[11px] text-[#64748B]">Metropolitan Health Clinic • Voice Reception</p>
             </div>
           </div>
 
@@ -340,7 +328,7 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
           <div className="lg:col-span-6 p-6 flex flex-col items-center justify-between bg-slate-50/50">
             <div className="text-center">
               <h3 className="font-bold text-base text-[#172033]">
-                Alex — AI Outpatient Receptionist
+                Talk to Alex
               </h3>
               <p className="text-xs text-[#64748B] mt-0.5">
                 Speak naturally and pause briefly or say "Done" when finished
@@ -391,24 +379,18 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
               <div className="mt-5 text-center">
                 <span className="text-xs font-semibold text-[#172033] block">
                   {callState === 'ai_speaking'
-                    ? 'Alex Speaking...'
+                    ? 'Alex is responding...'
                     : callState === 'speech_detected'
-                    ? (isMuted ? 'Microphone Muted' : 'Speech Detected (Say "Done" or pause when finished)')
-                    : callState === 'listening'
-                    ? (isMuted ? 'Microphone Muted' : 'Listening to You (Speak Now)')
-                    : callState === 'ready_for_next_input'
-                    ? 'Ready for Next Input'
-                    : callState === 'processing_audio'
-                    ? 'Processing Audio...'
-                    : callState === 'transcribing'
-                    ? 'Transcribing Speech...'
-                    : callState === 'generating_response' || callState === 'processing'
-                    ? 'Generating Response...'
+                    ? (isMuted ? 'Microphone Muted' : 'Listening... (Say "Done" or pause when finished)')
+                    : callState === 'listening' || callState === 'ready_for_next_input'
+                    ? (isMuted ? 'Microphone Muted' : 'Listening...')
+                    : callState === 'processing_audio' || callState === 'transcribing' || callState === 'generating_response' || callState === 'processing'
+                    ? 'Processing your request...'
                     : callState === 'connecting'
-                    ? 'Connecting to Alex...'
+                    ? 'Preparing your voice assistant...'
                     : callState === 'requesting_mic'
-                    ? 'Accessing Microphone...'
-                    : 'Alex is Ready'}
+                    ? 'Accessing microphone...'
+                    : 'Alex is ready'}
                 </span>
               </div>
 
@@ -485,17 +467,16 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Live Conversation Transcript & Interactive Intent Prompts */}
+          {/* Right Column: Conversation & Sample Questions */}
           <div className="lg:col-span-6 flex flex-col justify-between bg-white h-full min-h-[380px] p-5">
             {/* Transcript Header */}
             <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-[#0D9488]" />
                 <h4 className="font-semibold text-xs sm:text-sm text-[#172033]">
-                  Live Conversational Transcript
+                  Conversation
                 </h4>
               </div>
-              <span className="text-[11px] font-medium text-[#64748B]">Alex • AI Voice Assistant</span>
             </div>
 
             {/* Transcript Messages Area */}
@@ -503,9 +484,9 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
               {transcript.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 text-center text-[#64748B]">
                   <Sparkles className="w-8 h-8 text-teal-400 mb-2 animate-pulse" />
-                  <p className="font-medium text-xs text-[#172033]">Voice Transcript Standby</p>
+                  <p className="font-medium text-xs text-[#172033]">Ready to listen</p>
                   <p className="text-[11px] text-[#64748B] mt-0.5 max-w-xs">
-                    Speak into your microphone or click below to begin conversing with the clinical assistant.
+                    Speak naturally to Alex to book, check, or cancel an appointment.
                   </p>
                 </div>
               ) : (
@@ -529,8 +510,8 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
                         {item.speaker === 'assistant'
                           ? 'Alex'
                           : item.speaker === 'user'
-                          ? 'Patient (Recognized Speech)'
-                          : 'System'}
+                          ? 'You'
+                          : 'Notice'}
                       </span>
                       <span className="text-[10px] font-mono text-slate-400">{item.time}</span>
                     </div>
@@ -555,8 +536,7 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
             {/* Quick Suggestions & Input Controls */}
             <div className="pt-3 border-t border-slate-100 space-y-2.5">
               <div className="flex items-center justify-between text-[11px] text-[#64748B]">
-                <span>Sample patient questions:</span>
-                <span className="text-[10px] text-teal-600 font-medium">Click to speak or test intent</span>
+                <span>Try asking Alex</span>
               </div>
 
               {/* Quick Action Pills */}
@@ -579,7 +559,7 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Or type speech here if microphone is unavailable..."
+                  placeholder="Type your message here..."
                   disabled={!isCallActive}
                   className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#172033] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] disabled:opacity-50"
                 />
@@ -587,7 +567,7 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
                   type="submit"
                   disabled={!inputText.trim() || !isCallActive}
                   className="p-2 bg-[#0D9488] hover:bg-[#0F766E] disabled:bg-slate-200 text-white rounded-xl transition-all shadow-sm"
-                  title="Submit speech to AI"
+                  title="Send message"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -613,8 +593,8 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
                 </h4>
                 <p className="text-xs text-[#64748B] mt-1 leading-relaxed">
                   {confirmType === 'end_active_call'
-                    ? 'Ending the session will stop microphone streams, conclude conversational audio, and return to the dashboard.'
-                    : 'The voice engine is still establishing connection. Do you want to cancel and exit?'}
+                    ? 'Ending the call will close your conversation with Alex and return to the dashboard.'
+                    : 'Alex is still connecting. Do you want to cancel and exit?'}
                 </p>
               </div>
 
