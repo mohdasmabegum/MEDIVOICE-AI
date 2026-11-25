@@ -167,9 +167,10 @@ class GeminiService:
                 ),
             )
 
-            # Build history (normalize roles: must start with user and alternate)
+            # Build history (keep recent 14 turns for fast inference; normalize roles)
+            recent_messages = messages[-14:] if len(messages) > 14 else messages
             contents = []
-            for m in messages:
+            for m in recent_messages:
                 text = (m.get("content") or "").strip()
                 if not text:
                     continue
@@ -200,6 +201,7 @@ class GeminiService:
                 system_instruction=active_instruction,
                 tools=tools,
                 temperature=0.3,
+                max_output_tokens=220,
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             )
 

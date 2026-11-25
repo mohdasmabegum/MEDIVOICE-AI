@@ -11,6 +11,7 @@ import { FullScreenCallModal } from './components/assistant/FullScreenCallModal'
 import { BookingSuccessModal } from './components/modals/BookingSuccessModal';
 import { CancellationSuccessModal } from './components/modals/CancellationSuccessModal';
 import { ToastContainer } from './components/common/ToastContainer';
+import { SplashScreen } from './components/common/SplashScreen';
 import { useVoiceCall } from './hooks/useVoiceCall';
 import { apiService } from './services/api';
 import { 
@@ -42,8 +43,14 @@ export const App: React.FC = () => {
   const [cancellationSuccessData, setCancellationSuccessData] = useState<CancellationSuccessData | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  // Initial Splash Screen State (shown once on initial app load)
+  const [showSplash, setShowSplash] = useState(true);
+  const [isSplashFading, setIsSplashFading] = useState(false);
+  const [splashNotice, setSplashNotice] = useState<string | null>(null);
+
   // Initial fetch through apiService (gracefully falls back to mockData)
   useEffect(() => {
+    let mounted = true;
     const loadData = async () => {
       try {
         const [loadedStats, loadedDoctors, loadedAppointments, loadedCalls] = await Promise.all([
@@ -52,15 +59,29 @@ export const App: React.FC = () => {
           apiService.getAppointments(),
           apiService.getCallRecords(),
         ]);
+        if (!mounted) return;
         setStats(loadedStats);
         setDoctors(loadedDoctors);
         setAppointments(loadedAppointments);
         setCallRecords(loadedCalls);
       } catch (err) {
-        console.warn('Using default mock dataset for Phase 2:', err);
+        console.warn('Using default clinical dataset:', err);
+        if (mounted) {
+          setSplashNotice('Loading offline clinic schedule...');
+        }
+      } finally {
+        if (mounted) {
+          setIsSplashFading(true);
+          setTimeout(() => {
+            if (mounted) setShowSplash(false);
+          }, 280);
+        }
       }
     };
     loadData();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const handleShowToast = useCallback((type: ToastMessage['type'], title: string, message: string) => {
@@ -472,6 +493,13 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex text-[#172033]">
+      {/* Initial Application Splash Screen */}
+      <SplashScreen
+        isVisible={showSplash}
+        isFadingOut={isSplashFading}
+        errorNotice={splashNotice}
+      />
+
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
 

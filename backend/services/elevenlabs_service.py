@@ -38,7 +38,7 @@ class ElevenLabsService:
         self,
         text: str,
         voice_id: str = DEFAULT_VOICE_ID,
-        output_format: str = "mp3_44100_64"
+        output_format: str = "mp3_22050_32"
     ) -> Dict[str, Any]:
         """
         Converts text to speech audio bytes using ElevenLabs TTS.
@@ -55,12 +55,21 @@ class ElevenLabsService:
             return {"success": False, "audio_bytes": None, "error": "Empty text provided"}
 
         try:
-            audio_generator = self.client.text_to_speech.convert(
-                voice_id=voice_id,
-                text=text.strip(),
-                model_id=DEFAULT_TTS_MODEL,
-                output_format=output_format
-            )
+            try:
+                audio_generator = self.client.text_to_speech.convert(
+                    voice_id=voice_id,
+                    text=text.strip(),
+                    model_id=DEFAULT_TTS_MODEL,
+                    output_format=output_format,
+                    optimize_streaming_latency=3,
+                )
+            except TypeError:
+                audio_generator = self.client.text_to_speech.convert(
+                    voice_id=voice_id,
+                    text=text.strip(),
+                    model_id=DEFAULT_TTS_MODEL,
+                    output_format=output_format,
+                )
             # Collect audio bytes from generator
             audio_bytes = b"".join(audio_generator)
             return {

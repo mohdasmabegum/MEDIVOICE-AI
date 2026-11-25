@@ -90,7 +90,7 @@ interface UseVoiceCallOptions {
 export const useVoiceCall = ({
   doctors,
   appointments,
-  silenceDurationMs = 1750,
+  silenceDurationMs = 1250,
   onBookAppointment,
   onCancelAppointment,
   onShowToast,
@@ -303,9 +303,14 @@ export const useVoiceCall = ({
           const blob = new Blob(chunks, { type: mimeTypeRef.current });
           if (blob.size >= 800) {
             const buf = await blob.arrayBuffer();
-            const b64 = arrayBufferToBase64(buf);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              sendWsMessage({ type: 'audio_chunk', data: b64 });
+              try {
+                // Send raw binary audio directly to avoid base64 encoding overhead
+                wsRef.current.send(buf);
+              } catch {
+                const b64 = arrayBufferToBase64(buf);
+                sendWsMessage({ type: 'audio_chunk', data: b64 });
+              }
               sendWsMessage({ type: 'speech_end' });
             }
           } else {
@@ -338,7 +343,7 @@ export const useVoiceCall = ({
       }
     };
 
-    recorder.start(250);
+    recorder.start(100);
   }, []);
 
   // --- Finalize Current Speech Input Immediately (VAD end or explicit "Done" command) ---

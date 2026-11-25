@@ -191,26 +191,32 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
         );
       case 'processing_audio':
       case 'transcribing':
-      case 'generating_response':
-      case 'processing':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             Processing your request...
           </span>
         );
+      case 'generating_response':
+      case 'processing':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200 text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-[#0D9488] animate-pulse" />
+            Preparing your response...
+          </span>
+        );
       case 'ai_speaking':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#0D9488] animate-bounce" />
-            Alex is responding...
+            Alex is speaking...
           </span>
         );
       case 'ready_for_next_input':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Listening...
+            Ready for your next request
           </span>
         );
       case 'ended':
@@ -379,13 +385,17 @@ export const FullScreenCallModal: React.FC<FullScreenCallModalProps> = ({
               <div className="mt-5 text-center">
                 <span className="text-xs font-semibold text-[#172033] block">
                   {callState === 'ai_speaking'
-                    ? 'Alex is responding...'
+                    ? 'Alex is speaking...'
                     : callState === 'speech_detected'
                     ? (isMuted ? 'Microphone Muted' : 'Listening... (Say "Done" or pause when finished)')
-                    : callState === 'listening' || callState === 'ready_for_next_input'
+                    : callState === 'listening'
                     ? (isMuted ? 'Microphone Muted' : 'Listening...')
-                    : callState === 'processing_audio' || callState === 'transcribing' || callState === 'generating_response' || callState === 'processing'
+                    : callState === 'ready_for_next_input'
+                    ? 'Ready for your next request.'
+                    : callState === 'processing_audio' || callState === 'transcribing'
                     ? 'Processing your request...'
+                    : callState === 'generating_response' || callState === 'processing'
+                    ? 'Preparing your response...'
                     : callState === 'connecting'
                     ? 'Preparing your voice assistant...'
                     : callState === 'requesting_mic'
