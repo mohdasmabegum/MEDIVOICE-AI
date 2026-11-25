@@ -39,11 +39,19 @@ backend/medivoice.db
 
 # OS / Editor
 .DS_Store
-Thumbs.db
+Thumbbs.db
 .vscode/
 .idea/
 
-# Large media
+# Large media files (test recordings)
 *.mp4
+*.mov
+*.avi
+
+# Python test cache
+.pytest_cache/
+
+# npm cache dir
+.npm/
 
 .vercel

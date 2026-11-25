@@ -21,11 +21,28 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Raise chunk size warning threshold to 600 kB; recharts is inherently large
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          charts: ['recharts'],
+        manualChunks(id) {
+          // Core React runtime — tiny, always needed
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+            return 'vendor';
+          }
+          // Recharts + its D3 dependencies — large but only used in dashboard overview
+          if (
+            id.includes('node_modules/recharts') ||
+            id.includes('node_modules/d3-') ||
+            id.includes('node_modules/victory-') ||
+            id.includes('node_modules/lodash')
+          ) {
+            return 'charts';
+          }
+          // Lucide icon tree — medium, used throughout
+          if (id.includes('node_modules/lucide-react')) {
+            return 'icons';
+          }
         },
       },
     },
