@@ -121,6 +121,7 @@ export const useVoiceCall = ({
   const audioQueueRef = useRef<Array<{ audio: string; contentType: string }>>([]);
   const isPlayingAudioRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const aiSpeakingEndedAtRef = useRef<number>(0);
 
   // MediaRecorder + VAD state
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -128,6 +129,7 @@ export const useVoiceCall = ({
   const mimeTypeRef = useRef<string>('audio/webm');
   const isSpeakingRef = useRef(false);
   const lastSpeechTimeRef = useRef<number>(0);
+  const recorderStartedAtRef = useRef<number>(0);
   const isFlushingUtteranceRef = useRef(false);
 
   // --- Safe WebSocket Send with Queueing ---
@@ -178,6 +180,9 @@ export const useVoiceCall = ({
       } catch {}
       currentAudioRef.current = null;
     }
+    if (isPlayingAudioRef.current) {
+      aiSpeakingEndedAtRef.current = Date.now();
+    }
     isPlayingAudioRef.current = false;
   }, []);
 
@@ -226,6 +231,11 @@ export const useVoiceCall = ({
     if (isPlayingAudioRef.current) return;
     if (audioQueueRef.current.length === 0) return;
     isPlayingAudioRef.current = true;
+    // Discard any idle mic buffer accumulated right before AI started speaking
+    if (!isSpeakingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      isFlushingUtteranceRef.current = false;
+      try { mediaRecorderRef.current.stop(); } catch {}
+    }
     try {
       while (audioQueueRef.current.length > 0) {
         const item = audioQueueRef.current.shift()!;
@@ -233,9 +243,15 @@ export const useVoiceCall = ({
       }
     } finally {
       isPlayingAudioRef.current = false;
+      aiSpeakingEndedAtRef.current = Date.now();
       if (callStateRef.current === 'ai_speaking') {
         setCallState('listening');
         setConversationStage('listening');
+      }
+      // Reset recorder buffer after AI audio finishes so no TTS echo is included in next utterance
+      if (!isSpeakingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        isFlushingUtteranceRef.current = false;
+        try { mediaRecorderRef.current.stop(); } catch {}
       }
     }
   }, [playAudioB64]);
@@ -254,6 +270,7 @@ export const useVoiceCall = ({
     mediaRecorderRef.current = recorder;
     audioChunksRef.current = [];
     isSpeakingRef.current = false;
+    recorderStartedAtRef.current = Date.now();
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0 && !isMutedRef.current) {
@@ -340,9 +357,11 @@ export const useVoiceCall = ({
 
           // Voice Activity Detection (VAD)
           const now = Date.now();
-          if (avgVol > SPEECH_THRESHOLD) {
-            // If user speaks while AI is speaking, interrupt AI playback
-            if (isPlayingAudioRef.current && avgVol > 0.08) {
+          const inEchoCooldown = now - aiSpeakingEndedAtRef.current < 450;
+
+          if (avgVol > SPEECH_THRESHOLD && !inEchoCooldown) {
+            // If user speaks loudly while AI is speaking, interrupt AI playback
+            if (isPlayingAudioRef.current && avgVol > 0.12) {
               stopAudioPlayback();
               sendWsMessage({ type: 'interrupt' });
             }
@@ -356,6 +375,17 @@ export const useVoiceCall = ({
             const rec = mediaRecorderRef.current;
             if (rec && rec.state === 'recording' && !isFlushingUtteranceRef.current) {
               isFlushingUtteranceRef.current = true;
+              rec.stop();
+            }
+          } else if (
+            !isSpeakingRef.current &&
+            !isPlayingAudioRef.current &&
+            now - recorderStartedAtRef.current > 4000
+          ) {
+            // Periodically rotate idle recorder so silence/ambient noise never accumulates
+            const rec = mediaRecorderRef.current;
+            if (rec && rec.state === 'recording' && !isFlushingUtteranceRef.current) {
+              isFlushingUtteranceRef.current = false;
               rec.stop();
             }
           }
@@ -530,7 +560,14 @@ export const useVoiceCall = ({
 
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
       mediaStreamRef.current = stream;
     } catch (err: any) {
       setCallState('error');
@@ -673,6 +710,7 @@ export const useVoiceCall = ({
   // --- Process User Speech (direct text via WebSocket or /api/chat fallback) ---
   const processUserSpeech = useCallback(async (text: string) => {
     if (!text.trim()) return;
+    stopAudioPlayback();
     if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
       sendWsMessage({ type: 'text_input', text });
     } else {

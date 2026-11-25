@@ -229,6 +229,12 @@ class PipecatVoiceSession:
             await self.set_state("listening")
             return
 
+        if gemini_res.get("error"):
+            logger.error(f"[{self.session_id}] Gemini returned error: {gemini_res['error']}")
+            await self.send({"type": "speech_error", "error": f"AI processing error: {gemini_res['error']}"})
+            await self.set_state("listening")
+            return
+
         ai_reply = gemini_res.get("response", "I am here to assist. How can I help?")
 
         # Booking notification

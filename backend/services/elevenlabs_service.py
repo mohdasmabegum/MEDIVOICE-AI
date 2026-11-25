@@ -1,9 +1,13 @@
 import io
+import re
 import logging
 from typing import Optional, Dict, Any, Iterator
 from backend.config import ELEVENLABS_API_KEY, is_elevenlabs_configured
 
 logger = logging.getLogger("medivoice.elevenlabs")
+
+# Matches ElevenLabs Scribe non-speech event tags such as [outro jingle], [music], (silence), etc.
+_NON_SPEECH_TAG_RE = re.compile(r"\[[^\]]*\]|\([^\)]*\)")
 
 # Default voice for medical receptionist (Alice - clear, warm professional female receptionist)
 DEFAULT_VOICE_ID = "Xb7hH8MSUJpSbSDYk0k2"
@@ -105,14 +109,23 @@ class ElevenLabsService:
             response = self.client.speech_to_text.convert(
                 file=audio_file,
                 model_id=DEFAULT_STT_MODEL,
-                language_code=language_code
+                language_code=language_code,
+                tag_audio_events=False,
             )
 
-            recognized_text = getattr(response, "text", "") or ""
-            logger.info(f"ElevenLabs STT result: '{recognized_text[:100]}'")
+            raw_text = (getattr(response, "text", "") or "").strip()
+            # Strip any residual non-speech event tags like [outro jingle], [music], (silence)
+            cleaned_text = _NON_SPEECH_TAG_RE.sub("", raw_text).strip()
+            logger.info(f"ElevenLabs STT result: raw='{raw_text[:100]}', cleaned='{cleaned_text[:100]}'")
+            if not cleaned_text:
+                return {
+                    "success": False,
+                    "text": "",
+                    "error": f"No intelligible speech detected (raw='{raw_text}')"
+                }
             return {
                 "success": True,
-                "text": recognized_text.strip(),
+                "text": cleaned_text,
                 "error": None
             }
         except Exception as e:

@@ -123,7 +123,7 @@ class GeminiService:
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=GEMINI_API_KEY)
+            client = self.client or genai.Client(api_key=GEMINI_API_KEY)
 
             # Build history (normalize roles: must start with user and alternate)
             contents = []
@@ -154,12 +154,14 @@ class GeminiService:
                 system_instruction=SYSTEM_INSTRUCTION,
                 tools=tools,
                 temperature=0.3,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             )
 
             # Iterative tool calling loop
             for _ in range(5):
                 response = None
-                for candidate_model in ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash']:
+                last_model_err = None
+                for candidate_model in ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash']:
                     try:
                         response = client.models.generate_content(
                             model=candidate_model,
@@ -169,10 +171,11 @@ class GeminiService:
                         if response:
                             break
                     except Exception as model_err:
+                        last_model_err = model_err
                         logger.warning(f"Model {candidate_model} failed, trying alternative: {model_err}")
                 
                 if not response:
-                    raise RuntimeError("All Gemini candidate models failed to generate content.")
+                    raise RuntimeError(f"All Gemini candidate models failed: {last_model_err}")
 
                 candidate = response.candidates[0]
                 has_function_calls = False
