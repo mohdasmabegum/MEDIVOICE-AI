@@ -1,0 +1,39 @@
+# Vercel deploy ignore — keep uploads fast and clean
+
+# Node dependencies (Vercel installs these itself)
+node_modules/
+
+# Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Local database (ephemeral on Vercel, seeded at startup)
+medivoice.db
+backend/medivoice.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Large test/demo media files
+*.mp4
+
+# Local env secrets (set via Vercel dashboard instead)
+.env
+.env.local
+.env.production
+backend/.env
+
+# Build cache
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Git internals
+.git/
+
+# Editor
+.vscode/
+.idea/

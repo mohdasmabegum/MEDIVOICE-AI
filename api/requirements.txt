@@ -1,0 +1,9 @@
+fastapi>=0.115.5
+uvicorn>=0.32.1
+sqlalchemy>=2.0.36
+pydantic>=2.10.1
+python-dotenv>=1.0.1
+python-multipart>=0.0.9
+google-genai>=1.0.0
+elevenlabs>=1.50.3
+httpx>=0.28.0

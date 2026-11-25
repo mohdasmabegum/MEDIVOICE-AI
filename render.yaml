@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: medivoice-ai-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://medivoice-ai-one.vercel.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medivoice-db
+          property: connectionString
+
+databases:
+  - name: medivoice-db
+    plan: free
+    databaseName: medivoice
+    user: medivoice_user
