@@ -50,15 +50,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow local dev and deployed Vercel frontend(s)
+# CORS — allow local dev, all Vercel preview deployments, and deployed Render frontend
 _cors_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
     "https://medivoice-ai-one.vercel.app",
-    "https://medivoice-ai-mohdasmabegums-projects.vercel.app",
 ]
+# Add any explicitly configured frontend URLs from FRONTEND_URL env var
 for _origin in FRONTEND_URL.split(","):
     _cleaned = _origin.strip().rstrip("/")
     if _cleaned and _cleaned not in _cors_origins:
@@ -70,6 +72,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=r"https://medivoice.*\.vercel\.app",
 )
 
 
@@ -118,6 +121,9 @@ def health_check(db: Session = Depends(get_db)):
         "version": "MediVoice-Pipecat v1.0.0",
         "websocketEndpoint": "/ws/call",
         "webrtcReady": True,
+        # Top-level for frontend compatibility
+        "geminiConfigured": is_gemini_configured(),
+        "elevenlabsConfigured": is_elevenlabs_configured(),
         "database": {
             "status": db_status,
             "doctorsCount": doc_count,

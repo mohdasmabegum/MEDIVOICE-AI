@@ -148,7 +148,9 @@ class PipecatVoiceSession:
 
     async def handle_speech_end(self) -> None:
         """Process buffered audio through ElevenLabs STT, then Gemini, then TTS."""
-        if len(self.audio_buffer) < 800:
+        buffer_size = len(self.audio_buffer)
+        if buffer_size < 800:
+            logger.debug(f"[{self.session_id}] Audio buffer too small ({buffer_size} bytes), skipping STT")
             self.audio_buffer.clear()
             return
 
@@ -169,23 +171,25 @@ class PipecatVoiceSession:
             await self.set_state("listening")
             return
 
+        logger.info(f"[{self.session_id}] Sending {len(audio_bytes)} bytes to ElevenLabs STT")
         try:
             stt = elevenlabs_service.speech_to_text(audio_bytes, filename="caller.webm")
         except Exception as exc:
             logger.error(f"[{self.session_id}] STT call error: {exc}")
-            await self.send({"type": "speech_error", "error": f"STT error: {exc}"})
+            await self.send({"type": "speech_warning", "message": "Could not reach speech recognition service. Please try again."})
             await self.set_state("listening")
             return
 
-        if not stt.get("success") or not stt.get("text", "").strip():
-            err = stt.get("error", "Could not recognise speech.")
-            logger.info(f"[{self.session_id}] STT result note: {err}")
-            await self.send({"type": "speech_warning", "message": "Speech not recognized, please speak clearly into your microphone."})
+        recognized_text = (stt.get("text") or "").strip()
+        if not stt.get("success") or not recognized_text:
+            err = stt.get("error", "No speech detected")
+            logger.info(f"[{self.session_id}] STT result: success={stt.get('success')}, text='{recognized_text}', err={err}")
+            await self.send({"type": "speech_warning", "message": "Speech not recognized — please speak clearly and try again."})
             await self.set_state("listening")
             return
 
-        recognized = stt["text"].strip()
-        await self.process_utterance(recognized)
+        logger.info(f"[{self.session_id}] STT recognized: '{recognized_text}'")
+        await self.process_utterance(recognized_text)
 
     async def process_utterance(self, text: str) -> None:
         """Run one conversational turn: user text → Gemini → TTS."""

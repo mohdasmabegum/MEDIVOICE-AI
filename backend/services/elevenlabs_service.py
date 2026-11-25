@@ -76,7 +76,7 @@ class ElevenLabsService:
     def speech_to_text(
         self,
         audio_data: bytes,
-        filename: str = "audio.wav",
+        filename: str = "audio.webm",
         language_code: Optional[str] = "en"
     ) -> Dict[str, Any]:
         """
@@ -95,7 +95,12 @@ class ElevenLabsService:
 
         try:
             audio_file = io.BytesIO(audio_data)
+            # Ensure the filename has the correct extension for content-type detection
+            if not filename.endswith(('.webm', '.wav', '.mp3', '.ogg', '.m4a', '.flac')):
+                filename = "caller_audio.webm"
             audio_file.name = filename
+
+            logger.info(f"ElevenLabs STT: sending {len(audio_data)} bytes, filename={filename}")
 
             response = self.client.speech_to_text.convert(
                 file=audio_file,
@@ -103,7 +108,8 @@ class ElevenLabsService:
                 language_code=language_code
             )
 
-            recognized_text = getattr(response, "text", "")
+            recognized_text = getattr(response, "text", "") or ""
+            logger.info(f"ElevenLabs STT result: '{recognized_text[:100]}'")
             return {
                 "success": True,
                 "text": recognized_text.strip(),
